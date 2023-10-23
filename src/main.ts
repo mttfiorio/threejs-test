@@ -1,8 +1,9 @@
 import * as THREE from "three";
-import { animateMesh, bounceMesh } from "./functions";
+import { animateMesh, bounceMesh, initMouseListener } from "./functions";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import * as dat from "dat.gui";
-import { nebula, stars } from "./assets";
+import { nebula, stars, stationUrl } from "./assets";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
 const renderer = new THREE.WebGLRenderer();
 renderer.shadowMap.enabled = true;
@@ -27,11 +28,16 @@ camera.position.set(-10, 30, 30);
 orbit.update();
 
 // Fog
-scene.fog = new THREE.Fog(0xffffff, 0, 200);
+scene.fog = new THREE.Fog(0xffffff, 0, 500);
+
+// Raycaster
+const mousePosition = new THREE.Vector2();
+initMouseListener(mousePosition);
+
+const rayCaster = new THREE.Raycaster();
 
 // Make an happy box
 const textureLoader = new THREE.TextureLoader();
-
 const boxGeometry = new THREE.BoxGeometry(4, 4, 4);
 const boxMaterial = new THREE.MeshStandardMaterial({
   color: 0xffffff,
@@ -83,7 +89,6 @@ scene.add(spotLight);
 spotLight.castShadow = true;
 
 // Add helpers
-
 const axesHelper = new THREE.AxesHelper(5);
 scene.add(axesHelper);
 
@@ -115,6 +120,21 @@ scene.background = cubeTextureLoader.load([
   stars,
 ]);
 
+// Assets
+const assetLoader = new GLTFLoader();
+assetLoader.load(
+  stationUrl.href,
+  (gltf: any) => {
+    const model = gltf.scene;
+    scene.add(model);
+    model.position.set(-4, 0.3, 4);
+    model.receiveShadow = true;
+    model.castShadow = true;
+  },
+  undefined,
+  (e: Error) => console.error(e)
+);
+
 // Add GUI
 const gui = new dat.GUI();
 
@@ -123,8 +143,8 @@ const options = {
   speed: 0.01,
   offset: 4,
   angle: 0.2,
-  penumbra: 0,
-  intensity: 3000,
+  penumbra: 1,
+  intensity: 5000,
 };
 gui.addColor(options, "sphereColor").onChange((e) => {
   sphere.material.color.set(e);
@@ -138,7 +158,6 @@ gui.add(options, "penumbra", 0, 1);
 gui.add(options, "intensity", 0, 10000);
 
 // Animations
-
 renderer.setAnimationLoop(() => {
   animateMesh(box, { x: 0.03, y: 0.01 });
 
@@ -147,6 +166,16 @@ renderer.setAnimationLoop(() => {
   spotLight.angle = options.angle;
   spotLight.penumbra = options.penumbra;
   spotLight.intensity = options.intensity;
+
+  // Change color if intersects
+  rayCaster.setFromCamera(mousePosition, camera);
+  const intersects = rayCaster.intersectObjects(scene.children);
+
+  for (let i = 0; i < intersects.length; i++) {
+    if (intersects[i].object.id === sphere.id) {
+      sphere.material.color.set("#ff0000");
+    }
+  }
 
   renderer.render(scene, camera);
 });
